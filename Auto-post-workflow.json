@@ -1,0 +1,404 @@
+{
+  "name": "Auto-post",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "content",
+        "options": {
+          "allowedOrigins": "*",
+          "binaryPropertyName": "data",
+          "responseData": ""
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -848,
+        -240
+      ],
+      "id": "",
+      "name": "Webhook",
+      "webhookId": ""
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer your-api-key"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a LinkedIn content strategist. Transform content for LinkedIn. Rules: Professional tone, 1300-1500 characters, include personal insight, add 3-5 relevant hashtags at the end, format with line breaks for readability.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Original content: {{ $('Webhook').first().json.body.content }}\\n\\nCreate a professional LinkedIn post that is very-well detailed with the proper emojis. List tech stacks and always call to action.\"\n    }\n  ],\n  \"temperature\": 0.7\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -528,
+        -160
+      ],
+      "id": "",
+      "name": "HTTP Request2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer your-api-key"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"gpt-4o-mini\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a social media expert. Convert content for Twitter. Rules: Max 280 characters, casual tone, 2-3 relevant hashtags, engaging hook, add emojis where appropriate.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Original content: {{ $json.body.content }}\\n\\nCreate an engaging Twitter post.\"\n    }\n  ]\n}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -672,
+        -192
+      ],
+      "id": "2fa33645-39a4-44a4-9dec-5d228c30a9ce",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "\nconst webhookData = $(\"Webhook\").first().json\nconst http1Content = $('HTTP Request1').first().json.body.choices[0].message.content\nconst http2Content = $json.body.choices[0].message.content\n\nreturn{\n  originalContent: webhookData.body.content,\n  linkedInPostContent: http2Content,\n  TwitterPostContent: http1Content,\n  includeImage: $('Webhook').first().json.body.includeImage,\n  imagePrompt: $('Webhook').first().json.body.imagePrompt,\n  platforms: $('Webhook').first().json.body.platforms\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        -144
+      ],
+      "id": "acfe1bc2-5dd8-490d-9840-2bdce9361f2a",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "prompt": "={{ $json.imagePrompt }}",
+        "options": {
+          "dalleQuality": "hd",
+          "size": "1024x1024",
+          "style": "vivid",
+          "returnImageUrls": false,
+          "binaryPropertyOutput": "data"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        -192,
+        -160
+      ],
+      "id": "7de655dd-9f23-4f27-ba1d-e95e273485e1",
+      "name": "Generate an image",
+      "credentials": {
+        "openAiApi": {
+          "id": "0mTNwBRp9ltC4uF6",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "text": "={{ $('HTTP Request1').item.json.body.choices[0].message.content }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.twitter",
+      "typeVersion": 2,
+      "position": [
+        256,
+        -336
+      ],
+      "id": "7c854203-3cf7-4b49-8fde-44eed90fcdeb",
+      "name": "Create Tweet",
+      "credentials": {
+        "twitterOAuth2Api": {
+          "id": "",
+          "name": "X account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "person": "",
+        "text": "={{ $('HTTP Request2').item.json.body.choices[0].message.content }}",
+        "shareMediaCategory": "IMAGE",
+        "binaryPropertyName": "={{ $('Generate an image').first().binary.data }}",
+        "additionalFields": {
+          "visibility": "PUBLIC"
+        }
+      },
+      "type": "n8n-nodes-base.linkedIn",
+      "typeVersion": 1,
+      "position": [
+        464,
+        -144
+      ],
+      "id": "",
+      "name": "Create a post",
+      "credentials": {
+        "linkedInOAuth2Api": {
+          "id": "",
+          "name": "LinkedIn account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f795b80e-e7b4-4355-81ea-ef1599a35a3a",
+              "leftValue": "={{ $('Webhook').item.json.body.includeImage }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        0,
+        -176
+      ],
+      "id": "",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "sendTo": "abdulsalamabulhamidarnold@gmail.com",
+        "subject": "Post status",
+        "message": "=<div style=\"padding: 15px;\">\n        <h1>\n            Post successfully created!\n        </h1>\n\n    <div>\n<h1>LinkedIn status:</h1>\n<p>\n{{ $json.urn }}\n</p>\n\n\n<h1>Twitter status:</h1>\n<p>\n{{ $('Create Tweet').first().json }}\n</p>\n     </div>\n    </div>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -176
+      ],
+      "id": "",
+      "name": "Send a message",
+      "webhookId": "32dfa9f5-ed9d-4d07-b515-ce85d64529a9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "primary-production-3d85.up.railway.app",
+            "user-agent": "PostmanRuntime/7.51.0",
+            "content-length": "541",
+            "accept": "*/*",
+            "accept-encoding": "gzip, deflate, br",
+            "content-type": "application/json",
+            "postman-token": "73d3a3b2-bd81-4116-9ce8-31e2b05e65af",
+            "x-forwarded-for": "102.88.111.231",
+            "x-forwarded-host": "primary-production-3d85.up.railway.app",
+            "x-forwarded-proto": "https",
+            "x-railway-edge": "railway/europe-west4-drams3a",
+            "x-railway-request-id": "",
+            "x-real-ip": "102.88.111.231",
+            "x-request-start": "1767115350078"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "content": "Just built my second AI automation workflow! 🚀 This one automatically posts content to Twitter and LinkedIn with AI optimization, which is excatly what I am testing right now so this post is the workflow test not the actual me lol.The possibilities are endless when you combine development skills with AI tools. Day 2 of automation actually, my second workflow. Yaay",
+            "includeImage": true,
+            "imagePrompt": "Modern tech automation illustration, vibrant colors, minimalist",
+            "platforms": [
+              "twitter",
+              "linkedin"
+            ]
+          },
+          "webhookUrl": "",
+          "executionMode": "test"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Generate an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate an image": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Tweet": {
+      "main": [
+        [
+          {
+            "node": "Create a post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a post": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Create Tweet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create a post",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Tweet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "Africa/Lagos",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "all",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "QzIKk42OpDBS2j6L"
+  },
+  "versionId": "af509d09-8708-4d86-9653-60041435afc6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": ""
+  },
+  "id": "",
+  "tags": []
+}
